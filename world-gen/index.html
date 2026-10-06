@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraGen — Procedural World Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #08090e;
+            --surface: #0e1018;
+            --surface-hover: #151824;
+            --border: #1a1d2a;
+            --border-hover: #2a2e40;
+            --accent: #6c8aff;
+            --accent-dim: rgba(108, 138, 255, 0.12);
+            --text: #c8cdd8;
+            --text-dim: #6b7280;
+            --text-bright: #f3f4f6;
+            --green: #4ade80;
+            --red: #f87171;
+            --amber: #fbbf24;
+            --violet: #a78bfa;
+            --cyan: #22d3ee;
+            --header-h: 52px;
+            --sidebar-w: 320px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, sans-serif;
+            font-size: 13px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── Header ─── */
+        header {
+            height: var(--header-h);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            flex-shrink: 0;
+            user-select: none;
+            z-index: 20;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-dim);
+            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .nav-back-link:hover {
+            color: var(--text-bright);
+            background: var(--surface-hover);
+            border-color: var(--border-hover);
+        }
+
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-icon {
+            width: 26px; height: 26px;
+            background: linear-gradient(135deg, var(--accent), var(--violet));
+            border-radius: 6px;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: 700; color: #fff;
+            font-size: 14px;
+        }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-text h1 { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.1; letter-spacing: -0.01em; }
+        .logo-text span { font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+
+        .tabs { display: flex; gap: 4px; background: var(--bg); padding: 3px; border-radius: 6px; border: 1px solid var(--border); }
+        .tab {
+            background: transparent; border: none; color: var(--text-dim);
+            padding: 4px 10px; border-radius: 4px; cursor: pointer;
+            font-family: inherit; font-size: 12px; font-weight: 500;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: #fff; background: var(--surface); }
+
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+
+        .btn {
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text); padding: 6px 12px; border-radius: 6px;
+            cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 500;
+            transition: all 0.2s; display: inline-flex; justify-content: center; align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { background: var(--border); color: #fff; }
+        .btn.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+        .btn.primary:hover { filter: brightness(1.1); }
+        .btn-mobile-toggle { display: none; }
+
+        /* ─── Main Content Layout ─── */
+        .main-content {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - var(--header-h));
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .canvas-container {
+            flex: 1; position: relative; background: var(--bg);
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+            image-rendering: pixelated;
+        }
+
+        /* ─── Intro Framing Overlay ─── */
+        .context-overlay {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            max-width: 360px;
+            background: rgba(14, 16, 24, 0.92);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            transition: all 0.3s ease;
+        }
+        .context-overlay.minimized {
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .context-overlay.minimized .context-body {
+            display: none;
+        }
+        .context-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .context-overlay.minimized .context-header {
+            margin-bottom: 0;
+        }
+        .context-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+        .context-badge {
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(108,138,255,0.25);
+        }
+        .context-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px;
+            line-height: 1;
+        }
+        .context-close-btn:hover { color: #fff; }
+        .context-desc {
+            font-size: 12px;
+            color: var(--text);
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        .context-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-dim);
+        }
+        .context-pill {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        #tooltip {
+            position: fixed; background: rgba(14, 16, 24, 0.95);
+            border: 1px solid var(--border); padding: 8px 12px;
+            border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: var(--text); pointer-events: none; z-index: 30;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+            display: none; line-height: 1.5;
+            backdrop-filter: blur(6px);
+        }
+        #tooltip strong { color: #fff; font-family: 'Inter', sans-serif; font-size: 12px; }
+
+        /* ─── Sidebar ─── */
+        .sidebar {
+            width: var(--sidebar-w); background: var(--surface); border-left: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+            z-index: 15;
+        }
+        .sidebar::-webkit-scrollbar { width: 5px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        
+        .section { padding: 16px; border-bottom: 1px solid var(--border); }
+        .section:last-child { border-bottom: none; }
+        .section h3 {
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-dim); margin-bottom: 12px; font-family: 'JetBrains Mono', monospace;
+        }
+
+        .flex-row { display: flex; gap: 8px; }
+        input[type="text"] {
+            flex: 1; background: var(--bg); border: 1px solid var(--border);
+            color: var(--text); padding: 6px 8px; border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+        }
+        input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+        .slider-group { margin-bottom: 12px; }
+        .slider-group:last-child { margin-bottom: 0; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: var(--text); }
+        .slider-header span:last-child { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 11px; }
+
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; background: transparent; height: 16px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 12px; width: 12px;
+            border-radius: 50%; background: var(--text-bright); cursor: pointer;
+            margin-top: -4px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer;
+            background: var(--border); border-radius: 2px;
+        }
+        input[type="range"]:focus { outline: none; }
+
+        .checkbox-label {
+            display: flex; align-items: center; gap: 8px; font-size: 12px;
+            cursor: pointer; margin-top: 8px; color: var(--text); user-select: none;
+        }
+        .checkbox-label input { accent-color: var(--accent); cursor: pointer; width: 14px; height: 14px; }
+
+        .stats-box { font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+        .stat-row { display: flex; justify-content: space-between; padding: 3px 0; color: var(--text-dim); }
+        .stat-row span:last-child { color: var(--text); }
+        .stat-divider { height: 1px; background: var(--border); margin: 6px 0; }
+        .stat-title { font-weight: 600; color: var(--text); margin-bottom: 4px; margin-top: 2px; font-size: 11px; }
+        .stat-biome-label { display: flex; align-items: center; gap: 6px; }
+        .color-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+        /* ─── Visual Pipeline Section ─── */
+        .pipeline-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .pipeline-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+        }
+        .step-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--accent);
+            font-weight: 600;
+            padding-top: 1px;
+        }
+        .step-info {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.3;
+        }
+        .step-info strong {
+            font-size: 11px;
+            color: var(--text-bright);
+        }
+        .step-info span {
+            font-size: 10px;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .drawer-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(2px);
+            z-index: 14;
+        }
+
+        /* ─── Mobile Responsiveness ─── */
+        @media (max-width: 860px) {
+            .tabs { display: none; }
+            .btn-mobile-toggle { display: inline-flex; }
+            .drawer-backdrop.active { display: block; }
+            .sidebar {
+                position: fixed;
+                top: var(--header-h);
+                right: 0;
+                bottom: 0;
+                width: 300px;
+                transform: translateX(100%);
+                transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                box-shadow: -8px 0 24px rgba(0,0,0,0.6);
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .context-overlay {
+                max-width: calc(100vw - 32px);
+            }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <a href="../portfolio/index.html" class="nav-back-link" title="Return to Muto Syuleyman's Portfolio">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            <span>Portfolio</span>
+        </a>
+        <div class="logo">
+            <div class="logo-icon">T</div>
+            <div class="logo-text">
+                <h1>TerraGen</h1>
+                <span>Procedural World Engine &bull; Muto Syuleyman</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs" id="viewTabs">
+        <button class="tab active" data-mode="biome">Biome Map</button>
+        <button class="tab" data-mode="elevation">Elevation</button>
+        <button class="tab" data-mode="moisture">Moisture</button>
+        <button class="tab" data-mode="temperature">Temperature</button>
+    </div>
+
+    <div class="header-actions">
+        <button class="btn btn-mobile-toggle" id="btnToggleSidebar">⚙ Parameters</button>
+        <button class="btn primary" id="btnGenNew">Generate World</button>
+    </div>
+</header>
+
+<div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+<div class="main-content">
+    <div class="canvas-container" id="canvasContainer">
+        <canvas id="worldCanvas"></canvas>
+        <div id="tooltip"></div>
+
+        <!-- Framing Intro Box -->
+        <div class="context-overlay" id="contextOverlay">
+            <div class="context-header">
+                <div class="context-title">
+                    <span>TerraGen</span>
+                    <span class="context-badge">Interactive Engine</span>
+                </div>
+                <button class="context-close-btn" id="btnToggleContext" title="Toggle Overview">&#x2715;</button>
+            </div>
+            <div class="context-body">
+                <p class="context-desc">
+                    A deterministic procedural world generator driven by multi-octave Perlin noise, thermal lapse rates, and hydraulic erosion.
+                </p>
+                <div class="context-pills">
+                    <span class="context-pill">11 Biomes</span>
+                    <span class="context-pill">Seeded PRNG</span>
+                    <span class="context-pill">Downhill Drainage</span>
+                    <span class="context-pill">Settlement Heuristics</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <aside class="sidebar" id="sidebar">
+        <div class="section">
+            <h3>World Seed</h3>
+            <div class="flex-row">
+                <input type="text" id="seedInput" value="1337">
+                <button class="btn" id="btnRandomize">Random</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>Terrain Parameters</h3>
+            <div class="slider-group">
+                <div class="slider-header"><span>Octaves</span><span id="valOctaves">6</span></div>
+                <input type="range" id="octaves" min="1" max="8" step="1" value="6">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>Lacunarity</span><span id="valLacunarity">2.0</span></div>
+                <input type="range" id="lacunarity" min="1.5" max="3.0" step="0.1" value="2.0">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>Persistence</span><span id="valPersistence">0.5</span></div>
+                <input type="range" id="persistence" min="0.3" max="0.7" step="0.01" value="0.5">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>Scale</span><span id="valScale">150</span></div>
+                <input type="range" id="scale" min="50" max="300" step="1" value="150">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>Sea Level</span><span id="valSeaLevel">0.35</span></div>
+                <input type="range" id="seaLevel" min="0.2" max="0.5" step="0.01" value="0.35">
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>Features</h3>
+            <div class="slider-group">
+                <div class="slider-header"><span>Rivers</span><span id="valRivers">4</span></div>
+                <input type="range" id="rivers" min="0" max="10" step="1" value="4">
+            </div>
+            <div class="slider-group">
+                <div class="slider-header"><span>Settlements</span><span id="valSettlements">6</span></div>
+                <input type="range" id="settlements" min="0" max="12" step="1" value="6">
+            </div>
+            <label class="checkbox-label">
+                <input type="checkbox" id="showGrid"> Show grid overlay
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="showContour"> Show contour lines
+            </label>
+        </div>
+        
+        <div class="section">
+            <h3>World Statistics</h3>
+            <div class="stats-box" id="statsBox">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+        
+        <div class="section">
+            <h3>Procedural Pipeline</h3>
+            <div class="pipeline-flow">
+                <div class="pipeline-step">
+                    <span class="step-num">01</span>
+                    <div class="step-info">
+                        <strong>Deterministic PRNG</strong>
+                        <span>mulberry32 seeded hash</span>
+                    </div>
+                </div>
+                <div class="pipeline-step">
+                    <span class="step-num">02</span>
+                    <div class="step-info">
+                        <strong>Fractal Noise (fBm)</strong>
+                        <span>6-octave elevation &amp; moisture</span>
+                    </div>
+                </div>
+                <div class="pipeline-step">
+                    <span class="step-num">03</span>
+                    <div class="step-info">
+                        <strong>Thermal Matrix</strong>
+                        <span>Latitude gradient + altitude lapse</span>
+                    </div>
+                </div>
+                <div class="pipeline-step">
+                    <span class="step-num">04</span>
+                    <div class="step-info">
+                        <strong>Biome Synthesis</strong>
+                        <span>11-class ecological assignment</span>
+                    </div>
+                </div>
+                <div class="pipeline-step">
+                    <span class="step-num">05</span>
+                    <div class="step-info">
+                        <strong>Hydraulic Drainage</strong>
+                        <span>Steepest gradient descent rivers</span>
+                    </div>
+                </div>
+                <div class="pipeline-step">
+                    <span class="step-num">06</span>
+                    <div class="step-info">
+                        <strong>Settlement Heuristics</strong>
+                        <span>Freshwater &amp; coast proximity</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<script>
+// ==========================================
+// SEEDED PSEUDO-RANDOM NUMBER GENERATOR (mulberry32)
+// ==========================================
+function mulberry32(a) {
+    return function() {
+        var t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
+
+function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+    }
+    return hash >>> 0;
+}
+
+function generateRandomSeed() {
+    return Math.floor(Math.random() * 900000 + 100000).toString();
+}
+
+// ==========================================
+// 2D PERLIN NOISE IMPLEMENTATION
+// ==========================================
+class Perlin {
+    constructor(prng) {
+        this.p = new Uint8Array(512);
+        const permutation = new Uint8Array(256);
+        for (let i = 0; i < 256; i++) permutation[i] = i;
+        
+        for (let i = 255; i > 0; i--) {
+            const j = Math.floor(prng() * (i + 1));
+            const temp = permutation[i];
+            permutation[i] = permutation[j];
+            permutation[j] = temp;
+        }
+        
+        for (let i = 0; i < 256; i++) {
+            this.p[i] = permutation[i];
+            this.p[256 + i] = permutation[i];
+        }
+    }
+
+    fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    lerp(t, a, b) { return a + t * (b - a); }
+    grad(hash, x, y) {
+        const h = hash & 3;
+        const u = h < 2 ? x : y;
+        const v = h < 2 ? y : x;
+        return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+    }
+
+    noise(x, y) {
+        const X = Math.floor(x) & 255;
+        const Y = Math.floor(y) & 255;
+        const xf = x - Math.floor(x);
+        const yf = y - Math.floor(y);
+
+        const u = this.fade(xf);
+        const v = this.fade(yf);
+
+        const aa = this.p[this.p[X] + Y];
+        const ab = this.p[this.p[X] + Y + 1];
+        const ba = this.p[this.p[X + 1] + Y];
+        const bb = this.p[this.p[X + 1] + Y + 1];
+
+        const x1 = this.lerp(u, this.grad(aa, xf, yf), this.grad(ba, xf - 1, yf));
+        const x2 = this.lerp(u, this.grad(ab, xf, yf - 1), this.grad(bb, xf - 1, yf - 1));
+
+        return (this.lerp(v, x1, x2) + 1) * 0.5; // Normalized to [0, 1]
+    }
+
+    fbm(x, y, octaves, lacunarity, persistence) {
+        let total = 0;
+        let frequency = 1;
+        let amplitude = 1;
+        let maxValue = 0;
+
+        for (let i = 0; i < octaves; i++) {
+            total += this.noise(x * frequency, y * frequency) * amplitude;
+            maxValue += amplitude;
+            amplitude *= persistence;
+            frequency *= lacunarity;
+        }
+
+        return total / maxValue;
+    }
+}
+
+// ==========================================
+// BIOME SYSTEM DEFINITION
+// ==========================================
+const BIOMES = {
+    DEEP_OCEAN: 0,
+    SHALLOW_WATER: 1,
+    BEACH: 2,
+    DESERT: 3,
+    GRASSLAND: 4,
+    FOREST: 5,
+    DENSE_FOREST: 6,
+    TUNDRA: 7,
+    SNOW: 8,
+    SWAMP: 9,
+    ROCKY_MOUNTAIN: 10
+};
+
+const BIOME_COLORS = {
+    [BIOMES.DEEP_OCEAN]: [26, 58, 92],
+    [BIOMES.SHALLOW_WATER]: [45, 106, 143],
+    [BIOMES.BEACH]: [212, 180, 131],
+    [BIOMES.DESERT]: [194, 149, 106],
+    [BIOMES.GRASSLAND]: [124, 179, 66],
+    [BIOMES.FOREST]: [46, 125, 50],
+    [BIOMES.DENSE_FOREST]: [27, 94, 32],
+    [BIOMES.TUNDRA]: [144, 164, 174],
+    [BIOMES.SNOW]: [236, 239, 241],
+    [BIOMES.SWAMP]: [74, 103, 65],
+    [BIOMES.ROCKY_MOUNTAIN]: [90, 80, 75]
+};
+
+const BIOME_NAMES = {
+    0: "Deep Ocean", 1: "Shallow Water", 2: "Beach", 3: "Desert", 4: "Grassland",
+    5: "Forest", 6: "Dense Forest", 7: "Tundra", 8: "Snow Peak", 9: "Swamp", 10: "Rocky Mountain"
+};
+
+// ==========================================
+// WORLD GENERATOR ENGINE
+// Decoupled Fixed Resolution: 360 x 240
+// ==========================================
+const WORLD_WIDTH = 360;
+const WORLD_HEIGHT = 240;
+
+let currentWorld = null;
+let currentViewMode = 'biome';
+
+// Cached pre-rendered buffer for lightning-fast resize redrawing
+const offscreenBuffer = document.createElement('canvas');
+offscreenBuffer.width = WORLD_WIDTH;
+offscreenBuffer.height = WORLD_HEIGHT;
+const offscreenCtx = offscreenBuffer.getContext('2d');
+
+function updateStatsUI(world) {
+    const stats = world.stats;
+    let biomesHtml = '';
+    const sortedBiomes = Object.keys(stats.biomeCounts).sort((a,b) => stats.biomeCounts[b] - stats.biomeCounts[a]);
+    
+    for (let b of sortedBiomes) {
+        const count = stats.biomeCounts[b];
+        const pct = ((count / (world.width * world.height)) * 100).toFixed(1);
+        if (pct < 0.1) continue;
+        const color = BIOME_COLORS[b];
+        biomesHtml += `
+            <div class="stat-row">
+                <span class="stat-biome-label">
+                    <span class="color-dot" style="background: rgb(${color[0]},${color[1]},${color[2]})"></span>
+                    ${BIOME_NAMES[b]}
+                </span>
+                <span>${pct}%</span>
+            </div>
+        `;
+    }
+
+    document.getElementById('statsBox').innerHTML = `
+        <div class="stat-row"><span>Land Coverage</span> <span>${stats.landPct}%</span></div>
+        <div class="stat-row"><span>Water Coverage</span> <span>${stats.waterPct}%</span></div>
+        <div class="stat-row"><span>Highest Elev</span> <span>[${stats.highest.x}, ${stats.highest.y}] (${stats.highest.e.toFixed(2)})</span></div>
+        <div class="stat-row"><span>Rivers</span> <span>${world.rivers.length}</span></div>
+        <div class="stat-row"><span>Settlements</span> <span>${world.settlements.length}</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat-title">Biome Distribution</div>
+        ${biomesHtml}
+    `;
+}
+
+function generateWorld() {
+    const seed = document.getElementById('seedInput').value;
+    const prng = mulberry32(hashString(seed));
+    
+    const params = {
+        octaves: parseInt(document.getElementById('octaves').value),
+        lacunarity: parseFloat(document.getElementById('lacunarity').value),
+        persistence: parseFloat(document.getElementById('persistence').value),
+        scale: parseInt(document.getElementById('scale').value),
+        seaLevel: parseFloat(document.getElementById('seaLevel').value),
+        riverCount: parseInt(document.getElementById('rivers').value),
+        settlementCount: parseInt(document.getElementById('settlements').value)
+    };
+
+    const gridWidth = WORLD_WIDTH;
+    const gridHeight = WORLD_HEIGHT;
+
+    const world = {
+        width: gridWidth,
+        height: gridHeight,
+        params,
+        e: new Float32Array(gridWidth * gridHeight),
+        m: new Float32Array(gridWidth * gridHeight),
+        t: new Float32Array(gridWidth * gridHeight),
+        biome: new Uint8Array(gridWidth * gridHeight),
+        rivers: [],
+        settlements: [],
+        stats: { waterPct: 0, landPct: 0, highest: {x:0, y:0, e:0}, biomeCounts: {} }
+    };
+
+    const noiseE = new Perlin(prng);
+    const noiseM = new Perlin(prng);
+    const noiseT = new Perlin(prng);
+    
+    const S = params.seaLevel;
+    let waterCells = 0;
+
+    // Generate Elevation, Moisture, and Temperature
+    for (let y = 0; y < gridHeight; y++) {
+        for (let x = 0; x < gridWidth; x++) {
+            let idx = y * gridWidth + x;
+            
+            let nx = x / params.scale;
+            let ny = y / params.scale;
+
+            // 1. Elevation via fBm
+            let e = noiseE.fbm(nx, ny, params.octaves, params.lacunarity, params.persistence);
+            // Island mask attenuation
+            let dx = (x / gridWidth) - 0.5;
+            let dy = (y / gridHeight) - 0.5;
+            let d = Math.sqrt(dx*dx + dy*dy) * 1.35;
+            e = Math.max(0, Math.min(1, e - d * 0.35 + 0.1));
+            world.e[idx] = e;
+
+            if (e > world.stats.highest.e) {
+                world.stats.highest = {x, y, e};
+            }
+
+            // 2. Moisture
+            let m = noiseM.fbm(nx + 100, ny + 100, params.octaves, params.lacunarity, params.persistence);
+            world.m[idx] = m;
+
+            // 3. Temperature: Latitude gradient modified by elevation lapse rate
+            let lat = Math.abs(y / gridHeight - 0.5) * 2; // 0 at equator, 1 at poles
+            let t = (1 - lat) * 0.7 + (1 - e) * 0.3;
+            t += (noiseT.noise(nx + 200, ny + 200) - 0.5) * 0.2;
+            world.t[idx] = Math.max(0, Math.min(1, t));
+
+            // Biome assignment
+            let b;
+            if (e < S * 0.75) {
+                b = BIOMES.DEEP_OCEAN;
+                waterCells++;
+            } else if (e < S) {
+                b = BIOMES.SHALLOW_WATER;
+                waterCells++;
+            } else if (e < S + 0.03) {
+                b = BIOMES.BEACH;
+            } else if (e > 0.78) {
+                b = (t < 0.35) ? BIOMES.SNOW : BIOMES.ROCKY_MOUNTAIN;
+            } else if (e > 0.62) {
+                b = (t < 0.3) ? BIOMES.TUNDRA : (m > 0.5 ? BIOMES.FOREST : BIOMES.GRASSLAND);
+            } else {
+                if (m < 0.28 && t > 0.5) b = BIOMES.DESERT;
+                else if (m > 0.75 && e < S + 0.12) b = BIOMES.SWAMP;
+                else if (m > 0.65) b = BIOMES.DENSE_FOREST;
+                else if (m > 0.45) b = BIOMES.FOREST;
+                else b = BIOMES.GRASSLAND;
+            }
+
+            world.biome[idx] = b;
+            world.stats.biomeCounts[b] = (world.stats.biomeCounts[b] || 0) + 1;
+        }
+    }
+
+    world.stats.waterPct = ((waterCells / (gridWidth * gridHeight)) * 100).toFixed(1);
+    world.stats.landPct = (100 - world.stats.waterPct).toFixed(1);
+
+    // River Generation (Downhill Steepest Gradient Descent)
+    let mountainPoints = [];
+    for (let y = 1; y < gridHeight-1; y++) {
+        for (let x = 1; x < gridWidth-1; x++) {
+            let idx = y * gridWidth + x;
+            if (world.e[idx] > 0.65) {
+                mountainPoints.push({x, y, e: world.e[idx]});
+            }
+        }
+    }
+
+    mountainPoints.sort((a,b) => b.e - a.e);
+
+    let riversCreated = 0;
+    let riverGrid = new Uint8Array(gridWidth * gridHeight);
+
+    for (let pt of mountainPoints) {
+        if (riversCreated >= params.riverCount) break;
+        if (riverGrid[pt.y * gridWidth + pt.x]) continue;
+
+        let path = [{x: pt.x, y: pt.y}];
+        let cx = pt.x, cy = pt.y;
+        let reachedWater = false;
+
+        for (let step = 0; step < 400; step++) {
+            let lowestE = world.e[cy * gridWidth + cx];
+            let nx = cx, ny = cy;
+
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    let tx = cx + dx, ty = cy + dy;
+                    if (tx < 0 || tx >= gridWidth || ty < 0 || ty >= gridHeight) continue;
+                    let val = world.e[ty * gridWidth + tx];
+                    if (val < lowestE) {
+                        lowestE = val;
+                        nx = tx; ny = ty;
+                    }
+                }
+            }
+
+            if (nx === cx && ny === cy) break; // Local minimum
+
+            cx = nx; cy = ny;
+            path.push({x: cx, y: cy});
+            riverGrid[cy * gridWidth + cx] = 1;
+
+            if (world.e[cy * gridWidth + cx] <= S) {
+                reachedWater = true;
+                break;
+            }
+        }
+
+        if (reachedWater && path.length > 25) {
+            world.rivers.push(path);
+            riversCreated++;
+        }
+    }
+
+    // Settlements Placement Heuristics
+    let sCandidates = [];
+    for (let y = 5; y < gridHeight-5; y += 4) {
+        for (let x = 5; x < gridWidth-5; x += 4) {
+            let idx = y * gridWidth + x;
+            let e = world.e[idx];
+            if (e > S && e < 0.6) {
+                let score = 0;
+                let nearWater = false;
+                for (let dy = -4; dy <= 4; dy++) {
+                    for (let dx = -4; dx <= 4; dx++) {
+                        let tx = x + dx, ty = y + dy;
+                        if (tx >= 0 && tx < gridWidth && ty >= 0 && ty < gridHeight) {
+                            if (world.e[ty * gridWidth + tx] <= S || riverGrid[ty * gridWidth + tx]) {
+                                nearWater = true;
+                            }
+                        }
+                    }
+                }
+                if (nearWater) score += 5;
+                if (e > S + 0.05 && e < 0.45) score += 3;
+                if (score > 4) {
+                    sCandidates.push({x, y, score, e});
+                }
+            }
+        }
+    }
+
+    sCandidates.sort(() => prng() - 0.5);
+    const syls = ["Nor", "Val", "Oakh", "Drak", "Helm", "Riv", "Gle", "For", "Kag", "Mor", "Dun", "Ael", "Star", "Fall", "Mist", "Deep"];
+    
+    for (let i = 0; i < Math.min(params.settlementCount, sCandidates.length); i++) {
+        let name = syls[Math.floor(prng() * syls.length)] + syls[Math.floor(prng() * syls.length)].toLowerCase();
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+        world.settlements.push({x: sCandidates[i].x, y: sCandidates[i].y, name, e: sCandidates[i].e});
+    }
+
+    currentWorld = world;
+    updateStatsUI(world);
+    updateOffscreenBuffer();
+    renderWorld();
+}
+
+// ==========================================
+// OFFSCREEN BUFFER PIXEL CACHE
+// Generates image data once per world creation
+// ==========================================
+function updateOffscreenBuffer() {
+    if (!currentWorld) return;
+    const world = currentWorld;
+    const gw = world.width;
+    const gh = world.height;
+    const imgData = offscreenCtx.createImageData(gw, gh);
+    const data = imgData.data;
+    const S = world.params.seaLevel;
+
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            let idx = y * gw + x;
+            let pIdx = idx * 4;
+            
+            let e = world.e[idx];
+            let m = world.m[idx];
+            let t = world.t[idx];
+            let b = world.biome[idx];
+            
+            let rgb;
+            if (currentViewMode === 'biome') {
+                rgb = BIOME_COLORS[b];
+                // Subtle hillshading
+                if (e > S && x > 0 && y > 0) {
+                    let diff = (e - world.e[idx - 1]) + (e - world.e[idx - gw]);
+                    let shade = 1 + diff * 0.75;
+                    data[pIdx] = Math.min(255, Math.max(0, rgb[0] * shade));
+                    data[pIdx+1] = Math.min(255, Math.max(0, rgb[1] * shade));
+                    data[pIdx+2] = Math.min(255, Math.max(0, rgb[2] * shade));
+                    data[pIdx+3] = 255;
+                    continue;
+                }
+            } else if (currentViewMode === 'elevation') {
+                let v = Math.floor(e * 255);
+                rgb = [v, v, v];
+            } else if (currentViewMode === 'moisture') {
+                let v = Math.floor(m * 255);
+                rgb = [Math.floor((1-m)*180), Math.floor(m*200), 255];
+            } else if (currentViewMode === 'temperature') {
+                rgb = [Math.floor(t * 240 + 15), 50, Math.floor((1-t) * 230 + 25)];
+            }
+
+            data[pIdx] = rgb[0];
+            data[pIdx+1] = rgb[1];
+            data[pIdx+2] = rgb[2];
+            data[pIdx+3] = 255;
+        }
+    }
+
+    offscreenCtx.putImageData(imgData, 0, 0);
+}
+
+// ==========================================
+// VIEWPORT RENDERING
+// Decoupled from generation: redraws 60 FPS smoothly on resize
+// ==========================================
+function renderWorld() {
+    if (!currentWorld) return;
+    
+    const canvas = document.getElementById('worldCanvas');
+    const container = document.getElementById('canvasContainer');
+    const ctx = canvas.getContext('2d');
+    
+    const dpr = window.devicePixelRatio || 1;
+    const rect = container.getBoundingClientRect();
+    
+    // Fit canvas aspect ratio to logical world
+    const worldAspect = currentWorld.width / currentWorld.height;
+    const containerAspect = rect.width / rect.height;
+    
+    let drawW, drawH;
+    if (containerAspect > worldAspect) {
+        drawH = rect.height;
+        drawW = drawH * worldAspect;
+    } else {
+        drawW = rect.width;
+        drawH = drawW / worldAspect;
+    }
+    
+    canvas.width = drawW * dpr;
+    canvas.height = drawH * dpr;
+    canvas.style.width = drawW + 'px';
+    canvas.style.height = drawH + 'px';
+    
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+
+    // 1. Draw precomputed terrain from offscreen buffer
+    ctx.drawImage(offscreenBuffer, 0, 0, drawW, drawH);
+
+    const scaleX = drawW / currentWorld.width;
+    const scaleY = drawH / currentWorld.height;
+
+    // 2. Draw Contour Lines (if enabled)
+    const showContour = document.getElementById('showContour').checked;
+    if (showContour) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1;
+        for (let y = 0; y < currentWorld.height; y += 2) {
+            for (let x = 0; x < currentWorld.width; x += 2) {
+                let e = currentWorld.e[y * currentWorld.width + x];
+                if (Math.abs(e % 0.1) < 0.015 && e > currentWorld.params.seaLevel) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                    ctx.fillRect(x * scaleX, y * scaleY, scaleX*1.2, scaleY*1.2);
+                }
+            }
+        }
+    }
+
+    // 3. Draw Grid Overlay (if enabled)
+    const showGrid = document.getElementById('showGrid').checked;
+    if (showGrid) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        const step = 20;
+        ctx.beginPath();
+        for (let x = 0; x <= currentWorld.width; x += step) {
+            ctx.moveTo(x * scaleX, 0); ctx.lineTo(x * scaleX, drawH);
+        }
+        for (let y = 0; y <= currentWorld.height; y += step) {
+            ctx.moveTo(0, y * scaleY); ctx.lineTo(drawW, y * scaleY);
+        }
+        ctx.stroke();
+    }
+
+    // 4. Draw Rivers
+    if (currentViewMode === 'biome') {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        for (let river of currentWorld.rivers) {
+            if (river.length < 2) continue;
+            ctx.beginPath();
+            ctx.moveTo(river[0].x * scaleX, river[0].y * scaleY);
+
+            for (let i = 1; i < river.length; i++) {
+                ctx.lineWidth = Math.min(3.5, 1.2 + (i / river.length) * 2.2);
+                ctx.lineTo(river[i].x * scaleX, river[i].y * scaleY);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(river[i].x * scaleX, river[i].y * scaleY);
+            }
+        }
+    }
+
+    // 5. Draw Settlements
+    for (let s of currentWorld.settlements) {
+        let px = s.x * scaleX;
+        let py = s.y * scaleY;
+
+        ctx.fillStyle = '#fbbf24';
+        ctx.strokeStyle = '#08090e';
+        ctx.lineWidth = 1.5;
+
+        let size = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(px, py - size);
+        ctx.lineTo(px + size, py);
+        ctx.lineTo(px, py + size);
+        ctx.lineTo(px - size, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f3f4f6';
+        ctx.font = '500 10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(s.name, px, py - size - 3);
+        ctx.shadowBlur = 0;
+    }
+}
+
+// ==========================================
+// EVENTS & UI BINDINGS
+// ==========================================
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+const debouncedGenerate = debounce(generateWorld, 150);
+const debouncedRenderOnly = debounce(renderWorld, 40);
+
+// Initialize UI
+document.getElementById('seedInput').value = generateRandomSeed();
+
+document.querySelectorAll('input[type=range]').forEach(input => {
+    input.addEventListener('input', (e) => {
+        const valId = 'val' + e.target.id.charAt(0).toUpperCase() + e.target.id.slice(1);
+        const display = document.getElementById(valId);
+        if(display) display.textContent = e.target.value;
+        debouncedGenerate();
+    });
+});
+
+document.querySelectorAll('input[type=checkbox]').forEach(input => {
+    input.addEventListener('change', () => renderWorld());
+});
+
+document.getElementById('btnGenNew').addEventListener('click', () => {
+    document.getElementById('seedInput').value = generateRandomSeed();
+    generateWorld();
+});
+
+document.getElementById('btnRandomize').addEventListener('click', () => {
+    document.getElementById('seedInput').value = generateRandomSeed();
+    generateWorld();
+});
+
+document.getElementById('seedInput').addEventListener('input', debouncedGenerate);
+
+document.getElementById('viewTabs').addEventListener('click', (e) => {
+    if (e.target.classList.contains('tab')) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        e.target.classList.add('active');
+        currentViewMode = e.target.dataset.mode;
+        updateOffscreenBuffer();
+        renderWorld();
+    }
+});
+
+// Decoupled Resize Handler: Only redrawn, NEVER regenerated!
+window.addEventListener('resize', debouncedRenderOnly);
+
+// Tooltip Interaction
+const canvas = document.getElementById('worldCanvas');
+const tooltip = document.getElementById('tooltip');
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!currentWorld) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const gx = Math.floor((x / rect.width) * currentWorld.width);
+    const gy = Math.floor((y / rect.height) * currentWorld.height);
+    
+    if (gx >= 0 && gx < currentWorld.width && gy >= 0 && gy < currentWorld.height) {
+        const idx = gy * currentWorld.width + gx;
+        const ev = currentWorld.e[idx];
+        const m = currentWorld.m[idx];
+        const t = currentWorld.t[idx];
+        const b = currentWorld.biome[idx];
+        
+        let sName = "";
+        for (let s of currentWorld.settlements) {
+            if (Math.hypot(s.x - gx, s.y - gy) < 4) {
+                sName = `<div style="color:var(--amber);margin-top:2px;">🏛 Settlement: ${s.name}</div>`;
+                break;
+            }
+        }
+        
+        tooltip.innerHTML = `
+            <strong>${BIOME_NAMES[b]}</strong>
+            <div style="color:var(--text-dim);font-size:10px;">Grid: [${gx}, ${gy}]</div>
+            <div>Elev: ${ev.toFixed(2)} | Moist: ${m.toFixed(2)}</div>
+            <div>Temp: ${t.toFixed(2)}</div>
+            ${sName}
+        `;
+        tooltip.style.left = (e.clientX + 14) + 'px';
+        tooltip.style.top = (e.clientY + 14) + 'px';
+        tooltip.style.display = 'block';
+    } else {
+        tooltip.style.display = 'none';
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+});
+
+// Mobile Drawer Toggle
+const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+const sidebar = document.getElementById('sidebar');
+const drawerBackdrop = document.getElementById('drawerBackdrop');
+
+btnToggleSidebar.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    drawerBackdrop.classList.toggle('active');
+});
+
+drawerBackdrop.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    drawerBackdrop.classList.remove('active');
+});
+
+// Context Overlay Toggle
+const btnToggleContext = document.getElementById('btnToggleContext');
+const contextOverlay = document.getElementById('contextOverlay');
+
+btnToggleContext.addEventListener('click', (e) => {
+    e.stopPropagation();
+    contextOverlay.classList.toggle('minimized');
+    btnToggleContext.innerHTML = contextOverlay.classList.contains('minimized') ? '&#x24D8;' : '&#x2715;';
+});
+
+contextOverlay.addEventListener('click', () => {
+    if (contextOverlay.classList.contains('minimized')) {
+        contextOverlay.classList.remove('minimized');
+        btnToggleContext.innerHTML = '&#x2715;';
+    }
+});
+
+// Initial boot
+generateWorld();
+</script>
+</body>
+</html>

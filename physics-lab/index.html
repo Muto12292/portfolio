@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graviton - Real-Time 2D Physics Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #08090e;
+            --surface: #0e1018;
+            --surface-hover: #161a26;
+            --border: #1a1d2a;
+            --accent: #6c8aff;
+            --text: #c8cdd8;
+            --text-dim: #5a6070;
+            --green: #4ade80;
+            --red: #f87171;
+            --amber: #fbbf24;
+            --violet: #a78bfa;
+            --cyan: #22d3ee;
+            --header-h: 48px;
+            --sidebar-w: 320px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 13px;
+        }
+
+        /* Header */
+        header {
+            height: var(--header-h);
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            justify-content: space-between;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo-icon {
+            width: 24px; height: 24px;
+            background: linear-gradient(135deg, var(--accent), var(--violet));
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; color: #fff; font-size: 14px;
+        }
+        .logo-text { font-weight: 600; font-size: 15px; }
+        .logo-sub { color: var(--text-dim); font-size: 12px; margin-left: 8px; font-weight: 400; }
+        
+        .mode-tabs { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+        .mode-tab {
+            padding: 4px 12px; cursor: pointer; border-radius: 4px; color: var(--text-dim);
+            transition: all 0.2s; font-weight: 500; font-size: 12px;
+        }
+        .mode-tab.active { background: var(--surface-hover); color: var(--accent); }
+        .mode-tab:hover:not(.active) { color: var(--text); }
+
+        button.btn {
+            background: var(--surface-hover); border: 1px solid var(--border); color: var(--text);
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px;
+            transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+        }
+        button.btn:hover { background: var(--border); border-color: var(--accent); color: white; }
+        button.btn.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 500;}
+        button.btn.primary:hover { opacity: 0.9; }
+
+        /* Main Layout */
+        .main { display: flex; flex: 1; height: calc(100vh - var(--header-h)); }
+        
+        /* Canvas Area */
+        .viewport { flex: 1; position: relative; background: var(--bg); }
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        
+        /* Overlays */
+        .overlay { position: absolute; pointer-events: none; }
+        .hint-text { top: 16px; left: 16px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .hud {
+            bottom: 16px; right: 16px; text-align: right; font-family: 'JetBrains Mono', monospace;
+            background: rgba(14, 16, 24, 0.8); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);
+            backdrop-filter: blur(4px); display: flex; flex-direction: column; gap: 4px;
+        }
+        .hud-row { display: flex; justify-content: space-between; gap: 16px; }
+        .hud-label { color: var(--text-dim); }
+        .hud-val { color: var(--accent); }
+
+        .floating-controls {
+            bottom: 16px; left: 16px; display: flex; gap: 8px; pointer-events: auto;
+            background: rgba(14, 16, 24, 0.8); padding: 6px; border-radius: 8px; border: 1px solid var(--border);
+            backdrop-filter: blur(4px);
+        }
+        .icon-btn {
+            width: 32px; height: 32px; border-radius: 6px; background: transparent; border: 1px solid transparent;
+            color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .icon-btn:hover { background: var(--surface-hover); border-color: var(--border); color: var(--accent); }
+        .icon-btn.active { background: rgba(108, 138, 255, 0.1); color: var(--accent); border-color: rgba(108, 138, 255, 0.3); }
+        .icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-w); background: var(--surface); border-left: 1px solid var(--border);
+            display: flex; flex-direction: column; overflow-y: auto; padding-bottom: 24px; flex-shrink: 0;
+        }
+        .section { padding: 16px; border-bottom: 1px solid var(--border); }
+        .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); font-weight: 600; margin-bottom: 12px; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        .control-group { margin-bottom: 12px; }
+        .control-group:last-child { margin-bottom: 0; }
+        .control-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .control-label { color: var(--text); font-size: 12px; }
+        .control-value { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); }
+        
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent; height: 16px; margin: 4px 0;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: var(--border); border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%;
+            background: var(--accent); margin-top: -4px; cursor: pointer;
+        }
+        input[type=range]:focus { outline: none; }
+        
+        select {
+            width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+            padding: 6px 8px; border-radius: 4px; font-family: inherit; font-size: 12px; outline: none;
+            cursor: pointer;
+        }
+        select:focus { border-color: var(--accent); }
+
+        .desc-text { font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+        .equation { font-family: 'JetBrains Mono', monospace; background: var(--bg); padding: 8px; border-radius: 4px; font-size: 10px; color: var(--text-dim); border: 1px solid var(--border); margin-top: 8px; text-align: center;}
+
+        /* Energy & Performance */
+        .metrics-grid { display: grid; grid-template-columns: 1fr; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .metric-row { display: flex; justify-content: space-between; }
+        .chart-container { height: 60px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; margin-top: 8px; position: relative; }
+        #energyChart { width: 100%; height: 100%; display: block; }
+        
+        .perf-bar-container { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; display: flex; margin-top: 8px; border: 1px solid var(--border); }
+        .perf-segment.physics { background: var(--accent); }
+        .perf-segment.render { background: var(--violet); }
+        .perf-segment.idle { background: transparent; }
+        
+        .text-green { color: var(--green); }
+        .text-amber { color: var(--amber); }
+        .text-red { color: var(--red); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <a href="../portfolio/index.html" class="btn primary" style="text-decoration: none; padding: 4px 10px; font-weight: 600; font-size: 11px; margin-right: 8px;">← Back to Portfolio</a>
+        <div class="logo-icon">G</div>
+        <div>
+            <span class="logo-text">Graviton</span>
+            <span class="logo-sub">2D Physics Engine &bull; Developed by Muto Syuleyman</span>
+        </div>
+    </div>
+    <div class="mode-tabs">
+        <div class="mode-tab active" id="tab-nbody" onclick="setMode('nbody')">N-Body Gravitation</div>
+        <div class="mode-tab" id="tab-pendulum" onclick="setMode('pendulum')">Double Pendulum</div>
+    </div>
+    <button class="btn" onclick="exportCSV()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Export CSV
+    </button>
+</header>
+
+<div class="main">
+    <div class="viewport">
+        <canvas id="simCanvas"></canvas>
+        <div class="overlay hint-text">Click & drag to launch · Scroll to zoom · Shift+drag to pan</div>
+        
+        <div class="overlay floating-controls">
+            <button class="icon-btn" id="btn-play" onclick="togglePlay()" title="Play/Pause">
+                <svg viewBox="0 0 24 24" id="icon-pause"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <svg viewBox="0 0 24 24" id="icon-play" style="display:none;"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button class="icon-btn" onclick="step()" title="Step Forward">
+                <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+            <button class="icon-btn" onclick="resetSim()" title="Reset">
+                <svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+            </button>
+            <div style="width: 1px; background: var(--border); margin: 4px;"></div>
+            <button class="icon-btn active" id="btn-trails" onclick="toggleTrails()" title="Toggle Trails">
+                <svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4L22 6.92 20.5 5.5l-7 7-4-4-7 7z"/></svg>
+            </button>
+            <button class="icon-btn" onclick="clearTrails()" title="Clear Trails">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+
+        <div class="overlay hud">
+            <div class="hud-row"><span class="hud-label">FPS:</span> <span class="hud-val" id="hud-fps">60</span></div>
+            <div class="hud-row"><span class="hud-label">Time:</span> <span class="hud-val" id="hud-time">0.000s</span></div>
+            <div class="hud-row"><span class="hud-label">Bodies:</span> <span class="hud-val" id="hud-bodies">0</span></div>
+            <div class="hud-row"><span class="hud-label">Zoom:</span> <span class="hud-val" id="hud-zoom">1.00x</span></div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="section">
+            <div class="section-title">Presets</div>
+            <div class="grid-2" id="presets-nbody">
+                <button class="btn" onclick="loadPreset('figure8')">Figure-8</button>
+                <button class="btn" onclick="loadPreset('lagrange')">Lagrange L4/L5</button>
+                <button class="btn" onclick="loadPreset('keplerian')">Keplerian</button>
+                <button class="btn" onclick="loadPreset('chaos')">Chaotic Cluster</button>
+            </div>
+            <div class="grid-2" id="presets-pendulum" style="display:none;">
+                <button class="btn" onclick="loadPreset('twin')">Twin Chaos</button>
+                <button class="btn" onclick="loadPreset('highenergy')">High Energy</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Integrator</div>
+            <div class="control-group">
+                <select id="sel-integrator" onchange="updateIntegrator()">
+                    <option value="rk4">Runge-Kutta 4th Order [O(h⁴)]</option>
+                    <option value="verlet">Symplectic Velocity Verlet [O(h²)]</option>
+                    <option value="euler">Explicit Euler [O(h)]</option>
+                </select>
+                <div class="desc-text" id="integrator-desc">High precision, stability. Evaluates derivatives 4 times per step.</div>
+            </div>
+            
+            <div class="control-group" id="ctrl-dt">
+                <div class="control-header">
+                    <span class="control-label">Time Step (dt)</span>
+                    <span class="control-value" id="val-dt">0.016</span>
+                </div>
+                <input type="range" id="inp-dt" min="0.001" max="0.05" step="0.001" value="0.016" oninput="updateParams()">
+            </div>
+            
+            <div id="nbody-controls">
+                <div class="control-group">
+                    <div class="control-header">
+                        <span class="control-label">Gravitational Const (G)</span>
+                        <span class="control-value" id="val-g">1000</span>
+                    </div>
+                    <input type="range" id="inp-g" min="100" max="5000" step="100" value="1000" oninput="updateParams()">
+                </div>
+                <div class="control-group">
+                    <div class="control-header">
+                        <span class="control-label">Softening (ε)</span>
+                        <span class="control-value" id="val-eps">5.0</span>
+                    </div>
+                    <input type="range" id="inp-eps" min="0" max="20" step="0.5" value="5.0" oninput="updateParams()">
+                </div>
+                <div class="control-group">
+                    <div class="control-header">
+                        <span class="control-label">Elastic Restitution</span>
+                        <span class="control-value" id="val-rest">0.80</span>
+                    </div>
+                    <input type="range" id="inp-rest" min="0" max="1" step="0.05" value="0.8" oninput="updateParams()">
+                </div>
+                <div class="equation">aᵢ = Σ G·mⱼ·(rⱼ−rᵢ) / (|rⱼ−rᵢ|² + ε²)^(3/2)</div>
+            </div>
+            
+            <div id="pendulum-controls" style="display:none;">
+                <div class="control-group">
+                    <div class="control-header">
+                        <span class="control-label">Gravity (g)</span>
+                        <span class="control-value" id="val-pend-g">9.81</span>
+                    </div>
+                    <input type="range" id="inp-pend-g" min="1" max="30" step="0.1" value="9.81" oninput="updateParams()">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Performance Profiler</div>
+            <div class="metrics-grid">
+                <div class="metric-row"><span>Physics Budget:</span> <span id="perf-phys">0.0ms</span></div>
+                <div class="metric-row"><span>Render Budget:</span> <span id="perf-rend">0.0ms</span></div>
+                <div class="metric-row"><span>Total / Target:</span> <span id="perf-tot">0.0ms / 16.7ms</span></div>
+            </div>
+            <div class="perf-bar-container" title="Green: Physics, Blue: Render, Empty: Idle">
+                <div class="perf-segment physics" id="bar-phys" style="width: 0%"></div>
+                <div class="perf-segment render" id="bar-rend" style="width: 0%"></div>
+                <div class="perf-segment idle" id="bar-idle" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Hamiltonian Energy</div>
+            <div class="metrics-grid">
+                <div class="metric-row"><span>Kinetic (T):</span> <span id="en-t">0.0</span></div>
+                <div class="metric-row"><span>Potential (V):</span> <span id="en-v">0.0</span></div>
+                <div class="metric-row"><span>Total (H):</span> <span id="en-h">0.0</span></div>
+                <div class="metric-row"><span>Drift ΔE/E₀:</span> <span id="en-err" class="text-green">0.000%</span></div>
+            </div>
+            <div class="chart-container">
+                <canvas id="energyChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // System Config & Globals
+    const COLORS = {
+        bg: '#08090e', border: '#1a1d2a', accent: '#6c8aff', green: '#4ade80', red: '#f87171', amber: '#fbbf24', cyan: '#22d3ee', violet: '#a78bfa',
+        bodyColors: ['#6c8aff', '#4ade80', '#fbbf24', '#f87171', '#22d3ee', '#a78bfa', '#ff9a9e', '#fecfef']
+    };
+    
+    let state = {
+        mode: 'nbody', // nbody, pendulum
+        bodies: [],
+        pendulums: [],
+        particles: [],
+        time: 0,
+        subSteps: 3, // Multiplier for physics ticks per frame
+        dt: 0.016, // User chosen dt for entire frame
+        G: 1000,
+        g: 9.81, // pendulum gravity
+        softening: 5.0,
+        restitution: 0.8,
+        integrator: 'rk4',
+        
+        isPlaying: true,
+        showTrails: true,
+        
+        zoom: 1.0,
+        panX: 0, panY: 0,
+        
+        initialEnergy: null,
+        energyHistory: [],
+        
+        // Interaction
+        isDragging: false,
+        dragStart: null,
+        dragCurrent: null,
+        isPanning: false,
+        panStart: null,
+        
+        // Perf metrics
+        lastTime: performance.now(),
+        fps: 0,
+        frames: 0,
+        lastFpsTime: performance.now(),
+        tPhys: 0, tRend: 0
+    };
+
+    // Canvas Setup
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const eCanvas = document.getElementById('energyChart');
+    const eCtx = eCanvas.getContext('2d');
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+        ctx.scale(dpr, dpr);
+        
+        const eRect = eCanvas.parentElement.getBoundingClientRect();
+        eCanvas.width = eRect.width * dpr;
+        eCanvas.height = eRect.height * dpr;
+        eCanvas.style.width = `${eRect.width}px`;
+        eCanvas.style.height = `${eRect.height}px`;
+        eCtx.scale(dpr, dpr);
+        
+        if(state.panX === 0 && state.panY === 0) {
+            state.panX = rect.width / 2;
+            state.panY = rect.height / 2;
+        }
+    }
+    window.addEventListener('resize', resize);
+
+    // --- Physics Engine ---
+
+    class Body {
+        constructor(x, y, vx, vy, mass, color) {
+            this.id = Math.random().toString(36).substr(2,9);
+            this.x = x; this.y = y;
+            this.vx = vx; this.vy = vy;
+            this.mass = mass;
+            this.r = Math.max(3, Math.pow(mass, 1/3) * 1.5);
+            this.color = color || COLORS.bodyColors[Math.floor(Math.random()*COLORS.bodyColors.length)];
+            this.trail = [];
+            
+            // For RK4
+            this.x0=0; this.y0=0; this.vx0=0; this.vy0=0;
+            this.kx = [0,0,0,0]; this.ky = [0,0,0,0];
+            this.kvx = [0,0,0,0]; this.kvy = [0,0,0,0];
+            
+            // For Verlet
+            this.ax = 0; this.ay = 0;
+            this.ax_prev = 0; this.ay_prev = 0;
+        }
+    }
+
+    class Particle {
+        constructor(x, y, vx, vy, color) {
+            this.x = x; this.y = y;
+            this.vx = vx; this.vy = vy;
+            this.color = color;
+            this.life = 1.0; // 1 to 0
+            this.decay = 0.02 + Math.random() * 0.03;
+        }
+    }
+
+    // Pendulum State
+    class DoublePendulum {
+        constructor(l1, l2, m1, m2, th1, th2, th1_v=0, th2_v=0, color) {
+            this.l1 = l1; this.l2 = l2; this.m1 = m1; this.m2 = m2;
+            this.th1 = th1; this.th2 = th2;
+            this.v1 = th1_v; this.v2 = th2_v;
+            this.color = color;
+            this.trail = [];
+            
+            // RK4 buffers
+            this.th1_0=0; this.th2_0=0; this.v1_0=0; this.v2_0=0;
+            this.k_th1=[0,0,0,0]; this.k_th2=[0,0,0,0];
+            this.k_v1=[0,0,0,0]; this.k_v2=[0,0,0,0];
+        }
+    }
+
+    function calculateNBodyAccelerations(bodiesArr) {
+        let acc = new Array(bodiesArr.length).fill(0).map(()=>({x:0, y:0}));
+        const G = state.G;
+        const eps2 = state.softening * state.softening;
+        
+        for(let i=0; i<bodiesArr.length; i++) {
+            for(let j=i+1; j<bodiesArr.length; j++) {
+                const bi = bodiesArr[i]; const bj = bodiesArr[j];
+                const dx = bj.x - bi.x; const dy = bj.y - bi.y;
+                const distSq = dx*dx + dy*dy;
+                
+                const f = G / Math.pow(distSq + eps2, 1.5);
+                const fx = f * dx; const fy = f * dy;
+                
+                acc[i].x += fx * bj.mass;
+                acc[i].y += fy * bj.mass;
+                acc[j].x -= fx * bi.mass;
+                acc[j].y -= fy * bi.mass;
+            }
+        }
+        return acc;
+    }
+
+    function resolveCollisions(bodiesArr) {
+        const rest = state.restitution;
+        for(let i=0; i<bodiesArr.length; i++) {
+            for(let j=i+1; j<bodiesArr.length; j++) {
+                const b1 = bodiesArr[i]; const b2 = bodiesArr[j];
+                const dx = b2.x - b1.x; const dy = b2.y - b1.y;
+                const distSq = dx*dx + dy*dy;
+                const minDist = b1.r + b2.r;
+                
+                if(distSq < minDist*minDist && distSq > 0.0001) {
+                    const dist = Math.sqrt(distSq);
+                    const nx = dx/dist; const ny = dy/dist;
+                    
+                    // Separate
+                    const overlap = minDist - dist;
+                    const totalM = b1.mass + b2.mass;
+                    const shift1 = (overlap * (b2.mass / totalM));
+                    const shift2 = (overlap * (b1.mass / totalM));
+                    b1.x -= nx * shift1; b1.y -= ny * shift1;
+                    b2.x += nx * shift2; b2.y += ny * shift2;
+                    
+                    // Relative velocity
+                    const rvx = b2.vx - b1.vx; const rvy = b2.vy - b1.vy;
+                    const velAlongNormal = rvx*nx + rvy*ny;
+                    if(velAlongNormal > 0) continue; // Moving apart
+                    
+                    const j_imp = -(1 + rest) * velAlongNormal / (1/b1.mass + 1/b2.mass);
+                    const jx = j_imp * nx; const jy = j_imp * ny;
+                    
+                    b1.vx -= jx / b1.mass; b1.vy -= jy / b1.mass;
+                    b2.vx += jx / b2.mass; b2.vy += jy / b2.mass;
+                    
+                    // VFX
+                    spawnExplosion(b1.x + nx*b1.r, b1.y + ny*b1.r, b1.color, b2.color, Math.abs(j_imp));
+                }
+            }
+        }
+    }
+
+    function spawnExplosion(x, y, c1, c2, intensity) {
+        const count = Math.min(15, Math.max(5, Math.floor(intensity * 0.1)));
+        for(let i=0; i<count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 50 + 20;
+            const c = Math.random() > 0.5 ? c1 : c2;
+            state.particles.push(new Particle(x, y, Math.cos(angle)*speed, Math.sin(angle)*speed, c));
+        }
+    }
+
+    function stepNBody(dt) {
+        if(state.bodies.length === 0) return;
+        
+        if(state.integrator === 'euler') {
+            const acc = calculateNBodyAccelerations(state.bodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.vx += acc[i].x * dt; b.vy += acc[i].y * dt;
+                b.x += b.vx * dt; b.y += b.vy * dt;
+            }
+        } else if (state.integrator === 'verlet') {
+            // Velocity Verlet
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.x += b.vx * dt + 0.5 * b.ax * dt * dt;
+                b.y += b.vy * dt + 0.5 * b.ay * dt * dt;
+                b.ax_prev = b.ax; b.ay_prev = b.ay;
+            }
+            const acc = calculateNBodyAccelerations(state.bodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.ax = acc[i].x; b.ay = acc[i].y;
+                b.vx += 0.5 * (b.ax_prev + b.ax) * dt;
+                b.vy += 0.5 * (b.ay_prev + b.ay) * dt;
+            }
+        } else if (state.integrator === 'rk4') {
+            // RK4
+            let tempBodies = state.bodies.map(b => ({x:b.x, y:b.y, mass:b.mass}));
+            
+            // k1
+            const acc1 = calculateNBodyAccelerations(tempBodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.x0 = b.x; b.y0 = b.y; b.vx0 = b.vx; b.vy0 = b.vy;
+                b.kx[0] = b.vx0; b.ky[0] = b.vy0;
+                b.kvx[0] = acc1[i].x; b.kvy[0] = acc1[i].y;
+                tempBodies[i].x = b.x0 + b.kx[0] * dt/2; tempBodies[i].y = b.y0 + b.ky[0] * dt/2;
+            }
+            // k2
+            const acc2 = calculateNBodyAccelerations(tempBodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.kx[1] = b.vx0 + b.kvx[0] * dt/2; b.ky[1] = b.vy0 + b.kvy[0] * dt/2;
+                b.kvx[1] = acc2[i].x; b.kvy[1] = acc2[i].y;
+                tempBodies[i].x = b.x0 + b.kx[1] * dt/2; tempBodies[i].y = b.y0 + b.ky[1] * dt/2;
+            }
+            // k3
+            const acc3 = calculateNBodyAccelerations(tempBodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.kx[2] = b.vx0 + b.kvx[1] * dt/2; b.ky[2] = b.vy0 + b.kvy[1] * dt/2;
+                b.kvx[2] = acc3[i].x; b.kvy[2] = acc3[i].y;
+                tempBodies[i].x = b.x0 + b.kx[2] * dt; tempBodies[i].y = b.y0 + b.ky[2] * dt;
+            }
+            // k4
+            const acc4 = calculateNBodyAccelerations(tempBodies);
+            for(let i=0; i<state.bodies.length; i++) {
+                let b = state.bodies[i];
+                b.kx[3] = b.vx0 + b.kvx[2] * dt; b.ky[3] = b.vy0 + b.kvy[2] * dt;
+                b.kvx[3] = acc4[i].x; b.kvy[3] = acc4[i].y;
+                
+                b.x = b.x0 + (dt/6) * (b.kx[0] + 2*b.kx[1] + 2*b.kx[2] + b.kx[3]);
+                b.y = b.y0 + (dt/6) * (b.ky[0] + 2*b.ky[1] + 2*b.ky[2] + b.ky[3]);
+                b.vx = b.vx0 + (dt/6) * (b.kvx[0] + 2*b.kvx[1] + 2*b.kvx[2] + b.kvx[3]);
+                b.vy = b.vy0 + (dt/6) * (b.kvy[0] + 2*b.kvy[1] + 2*b.kvy[2] + b.kvy[3]);
+            }
+        }
+        
+        resolveCollisions(state.bodies);
+    }
+
+    function calculatePendulumAcc(p, th1, th2, v1, v2) {
+        const {m1, m2, l1, l2} = p;
+        const g = state.g * 100; // scale gravity for visuals
+        const d_th = th1 - th2;
+        
+        const num1 = -g * (2*m1 + m2) * Math.sin(th1) - m2 * g * Math.sin(th1 - 2*th2) - 2 * Math.sin(d_th) * m2 * (v2*v2*l2 + v1*v1*l1*Math.cos(d_th));
+        const den1 = l1 * (2*m1 + m2 - m2*Math.cos(2*th1 - 2*th2));
+        const a1 = num1 / den1;
+        
+        const num2 = 2 * Math.sin(d_th) * (v1*v1*l1*(m1+m2) + g*(m1+m2)*Math.cos(th1) + v2*v2*l2*m2*Math.cos(d_th));
+        const den2 = l2 * (2*m1 + m2 - m2*Math.cos(2*th1 - 2*th2));
+        const a2 = num2 / den2;
+        
+        return {a1, a2};
+    }
+
+    function stepPendulum(dt) {
+        for(let p of state.pendulums) {
+            // Always RK4 for stability
+            p.th1_0 = p.th1; p.th2_0 = p.th2; p.v1_0 = p.v1; p.v2_0 = p.v2;
+            
+            let a = calculatePendulumAcc(p, p.th1_0, p.th2_0, p.v1_0, p.v2_0);
+            p.k_th1[0] = p.v1_0; p.k_th2[0] = p.v2_0; p.k_v1[0] = a.a1; p.k_v2[0] = a.a2;
+            
+            a = calculatePendulumAcc(p, p.th1_0 + p.k_th1[0]*dt/2, p.th2_0 + p.k_th2[0]*dt/2, p.v1_0 + p.k_v1[0]*dt/2, p.v2_0 + p.k_v2[0]*dt/2);
+            p.k_th1[1] = p.v1_0 + p.k_v1[0]*dt/2; p.k_th2[1] = p.v2_0 + p.k_v2[0]*dt/2; p.k_v1[1] = a.a1; p.k_v2[1] = a.a2;
+            
+            a = calculatePendulumAcc(p, p.th1_0 + p.k_th1[1]*dt/2, p.th2_0 + p.k_th2[1]*dt/2, p.v1_0 + p.k_v1[1]*dt/2, p.v2_0 + p.k_v2[1]*dt/2);
+            p.k_th1[2] = p.v1_0 + p.k_v1[1]*dt/2; p.k_th2[2] = p.v2_0 + p.k_v2[1]*dt/2; p.k_v1[2] = a.a1; p.k_v2[2] = a.a2;
+            
+            a = calculatePendulumAcc(p, p.th1_0 + p.k_th1[2]*dt, p.th2_0 + p.k_th2[2]*dt, p.v1_0 + p.k_v1[2]*dt, p.v2_0 + p.k_v2[2]*dt);
+            p.k_th1[3] = p.v1_0 + p.k_v1[2]*dt; p.k_th2[3] = p.v2_0 + p.k_v2[2]*dt; p.k_v1[3] = a.a1; p.k_v2[3] = a.a2;
+            
+            p.th1 = p.th1_0 + (dt/6)*(p.k_th1[0] + 2*p.k_th1[1] + 2*p.k_th1[2] + p.k_th1[3]);
+            p.th2 = p.th2_0 + (dt/6)*(p.k_th2[0] + 2*p.k_th2[1] + 2*p.k_th2[2] + p.k_th2[3]);
+            p.v1 = p.v1_0 + (dt/6)*(p.k_v1[0] + 2*p.k_v1[1] + 2*p.k_v1[2] + p.k_v1[3]);
+            p.v2 = p.v2_0 + (dt/6)*(p.k_v2[0] + 2*p.k_v2[1] + 2*p.k_v2[2] + p.k_v2[3]);
+        }
+    }
+
+    function calculateEnergy() {
+        let T = 0, V = 0;
+        
+        if (state.mode === 'nbody') {
+            for(let b of state.bodies) {
+                T += 0.5 * b.mass * (b.vx*b.vx + b.vy*b.vy);
+            }
+            const eps2 = state.softening * state.softening;
+            for(let i=0; i<state.bodies.length; i++) {
+                for(let j=i+1; j<state.bodies.length; j++) {
+                    const dx = state.bodies[j].x - state.bodies[i].x;
+                    const dy = state.bodies[j].y - state.bodies[i].y;
+                    V -= (state.G * state.bodies[i].mass * state.bodies[j].mass) / Math.sqrt(dx*dx + dy*dy + eps2);
+                }
+            }
+        } else {
+            const g = state.g * 100;
+            for(let p of state.pendulums) {
+                // T = 0.5*m1*v1^2 + 0.5*m2*v2^2 (velocities in cartesian)
+                // We use angular
+                T += 0.5*p.m1*p.l1*p.l1*p.v1*p.v1 + 0.5*p.m2*(p.l1*p.l1*p.v1*p.v1 + p.l2*p.l2*p.v2*p.v2 + 2*p.l1*p.l2*p.v1*p.v2*Math.cos(p.th1-p.th2));
+                V -= (p.m1 + p.m2)*g*p.l1*Math.cos(p.th1) - p.m2*g*p.l2*Math.cos(p.th2);
+            }
+        }
+        
+        const H = T + V;
+        if(state.initialEnergy === null && (state.bodies.length>0 || state.pendulums.length>0)) state.initialEnergy = H;
+        if(state.bodies.length===0 && state.pendulums.length===0) state.initialEnergy = null;
+        
+        let err = 0;
+        if(state.initialEnergy !== null && state.initialEnergy !== 0) {
+            err = (H - state.initialEnergy) / Math.abs(state.initialEnergy) * 100;
+        }
+        
+        state.energyHistory.push(err);
+        if(state.energyHistory.length > 200) state.energyHistory.shift();
+        
+        return {T, V, H, err};
+    }
+
+    function doPhysics() {
+        const t0 = performance.now();
+        if(state.isPlaying) {
+            const step_dt = state.dt / state.subSteps;
+            for(let i=0; i<state.subSteps; i++) {
+                if(state.mode === 'nbody') stepNBody(step_dt);
+                else stepPendulum(step_dt);
+                state.time += step_dt;
+            }
+            
+            // Trail update
+            if(state.showTrails && state.frameCount % 2 === 0) {
+                if(state.mode === 'nbody') {
+                    for(let b of state.bodies) {
+                        b.trail.push({x: b.x, y: b.y});
+                        if(b.trail.length > 300) b.trail.shift();
+                    }
+                } else {
+                    for(let p of state.pendulums) {
+                        const x = p.l1*Math.sin(p.th1) + p.l2*Math.sin(p.th2);
+                        const y = p.l1*Math.cos(p.th1) + p.l2*Math.cos(p.th2);
+                        p.trail.push({x, y});
+                        if(p.trail.length > 400) p.trail.shift();
+                    }
+                }
+            }
+            
+            // Particles
+            for(let i = state.particles.length-1; i>=0; i--) {
+                let p = state.particles[i];
+                p.x += p.vx * state.dt; p.y += p.vy * state.dt;
+                p.life -= p.decay;
+                if(p.life <= 0) state.particles.splice(i, 1);
+            }
+        }
+        state.tPhys = performance.now() - t0;
+    }
+
+    // --- Rendering ---
+    
+    function drawGrid(w, h) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+        ctx.lineWidth = 1/state.zoom;
+        ctx.beginPath();
+        const step = 100;
+        
+        // Find visible bounds in world space
+        const left = -state.panX / state.zoom;
+        const right = (w - state.panX) / state.zoom;
+        const top = -state.panY / state.zoom;
+        const bottom = (h - state.panY) / state.zoom;
+        
+        const startX = Math.floor(left / step) * step;
+        const startY = Math.floor(top / step) * step;
+        
+        for(let x = startX; x < right; x += step) { ctx.moveTo(x, top); ctx.lineTo(x, bottom); }
+        for(let y = startY; y < bottom; y += step) { ctx.moveTo(left, y); ctx.lineTo(right, y); }
+        ctx.stroke();
+        
+        // Origin crosshair
+        ctx.strokeStyle = 'rgba(108, 138, 255, 0.4)';
+        ctx.lineWidth = 2/state.zoom;
+        ctx.beginPath();
+        ctx.moveTo(-15, 0); ctx.lineTo(15, 0);
+        ctx.moveTo(0, -15); ctx.lineTo(0, 15);
+        ctx.stroke();
+    }
+
+    function doRender() {
+        const t0 = performance.now();
+        const rect = canvas.getBoundingClientRect();
+        ctx.fillStyle = COLORS.bg;
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        
+        ctx.save();
+        ctx.translate(state.panX, state.panY);
+        ctx.scale(state.zoom, state.zoom);
+        
+        drawGrid(rect.width, rect.height);
+
+        // Trails
+        if(state.showTrails) {
+            ctx.lineWidth = 1.5 / state.zoom;
+            if(state.mode === 'nbody') {
+                for(let b of state.bodies) {
+                    if(b.trail.length < 2) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(b.trail[0].x, b.trail[0].y);
+                    for(let i=1; i<b.trail.length; i++) ctx.lineTo(b.trail[i].x, b.trail[i].y);
+                    ctx.strokeStyle = b.color + '66'; // 40% alpha
+                    ctx.stroke();
+                }
+            } else {
+                for(let p of state.pendulums) {
+                    if(p.trail.length < 2) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(p.trail[0].x, p.trail[0].y);
+                    for(let i=1; i<p.trail.length; i++) ctx.lineTo(p.trail[i].x, p.trail[i].y);
+                    ctx.strokeStyle = p.color + '88';
+                    ctx.stroke();
+                }
+            }
+        }
+
+        if(state.mode === 'nbody') {
+            // Particles
+            for(let p of state.particles) {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2/state.zoom, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+
+            // Bodies
+            for(let b of state.bodies) {
+                // Glow
+                let grad = ctx.createRadialGradient(b.x, b.y, b.r*0.5, b.x, b.y, b.r*2.5);
+                grad.addColorStop(0, b.color + '44');
+                grad.addColorStop(1, b.color + '00');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r*2.5, 0, Math.PI*2); ctx.fill();
+                
+                // Core
+                ctx.fillStyle = b.color;
+                ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
+                
+                // Velocity Vector
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1/state.zoom;
+                ctx.beginPath();
+                ctx.moveTo(b.x, b.y);
+                ctx.lineTo(b.x + b.vx*0.2, b.y + b.vy*0.2);
+                ctx.stroke();
+            }
+        } else {
+            // Pendulums
+            for(let p of state.pendulums) {
+                const x1 = p.l1 * Math.sin(p.th1); const y1 = p.l1 * Math.cos(p.th1);
+                const x2 = x1 + p.l2 * Math.sin(p.th2); const y2 = y1 + p.l2 * Math.cos(p.th2);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+                ctx.lineWidth = 2/state.zoom;
+                ctx.beginPath();
+                ctx.moveTo(0,0); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2);
+                ctx.stroke();
+                
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(x1, y1, 5/state.zoom, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(x2, y2, 5/state.zoom, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // Drag Preview
+        if(state.isDragging && state.dragStart && state.dragCurrent) {
+            ctx.strokeStyle = COLORS.accent;
+            ctx.setLineDash([5/state.zoom, 5/state.zoom]);
+            ctx.lineWidth = 1.5/state.zoom;
+            ctx.beginPath();
+            ctx.moveTo(state.dragStart.x, state.dragStart.y);
+            ctx.lineTo(state.dragCurrent.x, state.dragCurrent.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        ctx.restore();
+        state.tRend = performance.now() - t0;
+    }
+
+    function updateUI() {
+        document.getElementById('hud-fps').textContent = state.fps;
+        document.getElementById('hud-time').textContent = state.time.toFixed(3) + 's';
+        document.getElementById('hud-bodies').textContent = state.mode==='nbody'? state.bodies.length : state.pendulums.length*2;
+        document.getElementById('hud-zoom').textContent = state.zoom.toFixed(2) + 'x';
+
+        // Energy
+        const eng = calculateEnergy();
+        document.getElementById('en-t').textContent = eng.T.toExponential(3);
+        document.getElementById('en-v').textContent = eng.V.toExponential(3);
+        document.getElementById('en-h').textContent = eng.H.toExponential(3);
+        const errEl = document.getElementById('en-err');
+        errEl.textContent = (eng.err > 0 ? '+' : '') + eng.err.toFixed(4) + '%';
+        
+        let absErr = Math.abs(eng.err);
+        errEl.className = absErr > 5 ? 'text-red' : (absErr > 0.5 ? 'text-amber' : 'text-green');
+        
+        // Draw Chart
+        const eRect = eCanvas.getBoundingClientRect();
+        eCtx.clearRect(0,0, eRect.width, eRect.height);
+        if(state.energyHistory.length > 1) {
+            eCtx.strokeStyle = COLORS.accent;
+            eCtx.lineWidth = 1.5;
+            eCtx.beginPath();
+            const step = eRect.width / 200;
+            // auto-scale
+            let maxE = 0.001;
+            for(let e of state.energyHistory) maxE = Math.max(maxE, Math.abs(e));
+            
+            for(let i=0; i<state.energyHistory.length; i++) {
+                const x = i * step;
+                const y = eRect.height/2 - (state.energyHistory[i] / maxE) * (eRect.height/2 * 0.8);
+                if(i===0) eCtx.moveTo(x, y); else eCtx.lineTo(x, y);
+            }
+            eCtx.stroke();
+        }
+
+        // Perf
+        document.getElementById('perf-phys').textContent = state.tPhys.toFixed(2) + 'ms';
+        document.getElementById('perf-rend').textContent = state.tRend.toFixed(2) + 'ms';
+        
+        const tot = state.tPhys + state.tRend;
+        document.getElementById('perf-tot').textContent = tot.toFixed(1) + 'ms / 16.7ms';
+        
+        const pPct = Math.min(100, (state.tPhys / 16.66)*100);
+        const rPct = Math.min(100-pPct, (state.tRend / 16.66)*100);
+        document.getElementById('bar-phys').style.width = pPct + '%';
+        document.getElementById('bar-rend').style.width = rPct + '%';
+        document.getElementById('bar-idle').style.width = (100 - pPct - rPct) + '%';
+        
+        document.getElementById('bar-phys').style.backgroundColor = tot > 15 ? COLORS.amber : (tot > 16.6 ? COLORS.red : COLORS.accent);
+    }
+
+    function loop() {
+        const now = performance.now();
+        state.frames++;
+        if(now - state.lastFpsTime >= 1000) {
+            state.fps = state.frames;
+            state.frames = 0;
+            state.lastFpsTime = now;
+        }
+        
+        doPhysics();
+        doRender();
+        updateUI();
+        
+        state.frameCount++;
+        requestAnimationFrame(loop);
+    }
+
+    // --- Interactions ---
+
+    function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        return {
+            x: (cx - state.panX) / state.zoom,
+            y: (cy - state.panY) / state.zoom
+        };
+    }
+
+    canvas.addEventListener('mousedown', e => {
+        if(e.button === 0 && !e.shiftKey) {
+            if(state.mode === 'nbody') {
+                state.isDragging = true;
+                state.dragStart = getMousePos(e);
+                state.dragCurrent = {...state.dragStart};
+            }
+        } else if(e.button === 2 || e.shiftKey) {
+            state.isPanning = true;
+            state.panStart = {x: e.clientX - state.panX, y: e.clientY - state.panY};
+        }
+    });
+
+    canvas.addEventListener('mousemove', e => {
+        if(state.isDragging) {
+            state.dragCurrent = getMousePos(e);
+        } else if(state.isPanning) {
+            state.panX = e.clientX - state.panStart.x;
+            state.panY = e.clientY - state.panStart.y;
+        }
+    });
+
+    window.addEventListener('mouseup', e => {
+        if(state.isDragging && state.dragStart) {
+            const end = getMousePos(e);
+            const vx = (state.dragStart.x - end.x) * 2; // Drag opposite to launch
+            const vy = (state.dragStart.y - end.y) * 2;
+            const mass = 5 + Math.random() * 45;
+            state.bodies.push(new Body(state.dragStart.x, state.dragStart.y, vx, vy, mass));
+            state.initialEnergy = null; // reset drift baseline
+            state.energyHistory = [];
+        }
+        state.isDragging = false;
+        state.isPanning = false;
+    });
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        
+        const zoomDelta = e.deltaY < 0 ? 1.1 : 0.9;
+        const newZoom = Math.max(0.15, Math.min(5, state.zoom * zoomDelta));
+        
+        // Pan compensation for zoom at mouse
+        state.panX = cx - (cx - state.panX) * (newZoom / state.zoom);
+        state.panY = cy - (cy - state.panY) * (newZoom / state.zoom);
+        state.zoom = newZoom;
+    });
+
+    // --- Controls ---
+
+    function togglePlay() {
+        state.isPlaying = !state.isPlaying;
+        document.getElementById('icon-play').style.display = state.isPlaying ? 'none' : 'block';
+        document.getElementById('icon-pause').style.display = state.isPlaying ? 'block' : 'none';
+    }
+
+    function step() { state.isPlaying = false; doPhysics(); }
+
+    function resetSim() {
+        state.bodies = []; state.pendulums = []; state.particles = [];
+        state.time = 0; state.frameCount = 0;
+        state.initialEnergy = null; state.energyHistory = [];
+        const rect = canvas.getBoundingClientRect();
+        state.panX = rect.width / 2;
+        state.panY = rect.height / 2;
+        state.zoom = 1.0;
+        if(state.mode === 'nbody') {
+            applyPreset(state.currentPreset || 'figure8');
+        } else {
+            applyPreset(state.currentPreset || 'twin');
+        }
+    }
+
+    function toggleTrails() {
+        state.showTrails = !state.showTrails;
+        document.getElementById('btn-trails').classList.toggle('active');
+    }
+
+    function clearTrails() {
+        state.bodies.forEach(b => b.trail=[]);
+        state.pendulums.forEach(p => p.trail=[]);
+    }
+
+    function setMode(m) {
+        state.mode = m;
+        document.querySelectorAll('.mode-tab').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-'+m).classList.add('active');
+        
+        document.getElementById('presets-nbody').style.display = m==='nbody'?'grid':'none';
+        document.getElementById('presets-pendulum').style.display = m==='pendulum'?'grid':'none';
+        
+        document.getElementById('nbody-controls').style.display = m==='nbody'?'block':'none';
+        document.getElementById('pendulum-controls').style.display = m==='pendulum'?'block':'none';
+        
+        // Integrator rules
+        const sel = document.getElementById('sel-integrator');
+        if(m==='pendulum') {
+            sel.value = 'rk4';
+            sel.disabled = true;
+            document.getElementById('integrator-desc').textContent = "RK4 forced for chaotic systems.";
+        } else {
+            sel.disabled = false;
+            updateIntegrator();
+        }
+        
+        resetSim();
+        
+        // Auto load preset
+        if(m==='nbody') loadPreset('figure8');
+        else loadPreset('twin');
+    }
+
+    function updateParams() {
+        state.dt = parseFloat(document.getElementById('inp-dt').value);
+        document.getElementById('val-dt').textContent = state.dt.toFixed(3);
+        
+        state.G = parseFloat(document.getElementById('inp-g').value);
+        document.getElementById('val-g').textContent = state.G;
+        
+        state.softening = parseFloat(document.getElementById('inp-eps').value);
+        document.getElementById('val-eps').textContent = state.softening.toFixed(1);
+        
+        state.restitution = parseFloat(document.getElementById('inp-rest').value);
+        document.getElementById('val-rest').textContent = state.restitution.toFixed(2);
+        
+        state.g = parseFloat(document.getElementById('inp-pend-g').value);
+        document.getElementById('val-pend-g').textContent = state.g.toFixed(2);
+    }
+
+    function updateIntegrator() {
+        state.integrator = document.getElementById('sel-integrator').value;
+        const descs = {
+            'rk4': 'High precision, stability. Evaluates derivatives 4 times per step.',
+            'verlet': 'Symplectic, preserves energy over long time. Good for orbits.',
+            'euler': 'Fast but unstable. Energy drifts quickly.'
+        };
+        document.getElementById('integrator-desc').textContent = descs[state.integrator];
+    }
+
+    function applyPreset(id) {
+        state.currentPreset = id;
+        state.bodies = []; state.pendulums = []; state.particles = [];
+        state.time = 0; state.frameCount = 0;
+        state.initialEnergy = null; state.energyHistory = [];
+        
+        // Center view
+        const rect = canvas.getBoundingClientRect();
+        state.panX = rect.width/2; state.panY = rect.height/2;
+        state.zoom = 1.0;
+        
+        if(id === 'figure8') {
+            const m = 120;
+            const x0 = 120 * 0.97000436;
+            const y0 = -120 * 0.24308753;
+            const vx0 = 0.4662036850 * 50;
+            const vy0 = 0.4323657300 * 50;
+            
+            state.bodies.push(new Body(x0, y0, -vx0/2, -vy0/2, m, COLORS.cyan));
+            state.bodies.push(new Body(-x0, -y0, -vx0/2, -vy0/2, m, COLORS.violet));
+            state.bodies.push(new Body(0, 0, vx0, vy0, m, COLORS.accent));
+            state.G = 2000; state.softening = 1.0;
+        } 
+        else if (id === 'lagrange') {
+            state.G = 1000;
+            const M = 1000; const m = 20; const R = 200;
+            const V = Math.sqrt(state.G * M / R);
+            state.bodies.push(new Body(0, 0, 0, 0, M, COLORS.amber)); // Sun
+            state.bodies.push(new Body(R, 0, 0, V, m, COLORS.accent)); // Planet
+            
+            // L4
+            state.bodies.push(new Body(R*Math.cos(Math.PI/3), R*Math.sin(Math.PI/3), -V*Math.sin(Math.PI/3), V*Math.cos(Math.PI/3), 0.1, COLORS.green));
+            // L5
+            state.bodies.push(new Body(R*Math.cos(-Math.PI/3), R*Math.sin(-Math.PI/3), -V*Math.sin(-Math.PI/3), V*Math.cos(-Math.PI/3), 0.1, COLORS.red));
+        }
+        else if (id === 'keplerian') {
+            state.G = 1000;
+            const M = 1400;
+            state.bodies.push(new Body(0, 0, 0, 0, M, COLORS.amber));
+            
+            [85, 160, 260].forEach((R, i) => {
+                const V = Math.sqrt(state.G * M / R);
+                state.bodies.push(new Body(R, 0, 0, V, 5+i*5, COLORS.bodyColors[i]));
+            });
+        }
+        else if (id === 'chaos') {
+            state.G = 1500;
+            for(let i=0; i<5; i++) {
+                const a = i * Math.PI*2/5;
+                const R = 150;
+                const V = 80;
+                state.bodies.push(new Body(Math.cos(a)*R, Math.sin(a)*R, -Math.sin(a)*V, Math.cos(a)*V, 30+Math.random()*20));
+            }
+        }
+        else if (id === 'twin') {
+            state.pendulums.push(new DoublePendulum(120, 110, 15, 12, Math.PI/2, Math.PI/2, 0, 0, COLORS.accent));
+            state.pendulums.push(new DoublePendulum(120, 110, 15, 12, Math.PI/2, Math.PI/2 + 0.001, 0, 0, COLORS.red));
+            state.g = 9.81;
+        }
+        else if (id === 'highenergy') {
+            state.pendulums.push(new DoublePendulum(120, 110, 15, 12, 0.98*Math.PI, 0.95*Math.PI, 0, 0, COLORS.cyan));
+            state.g = 15.0;
+        }
+        
+        // update sliders
+        document.getElementById('inp-g').value = state.G;
+        document.getElementById('inp-eps').value = state.softening;
+        document.getElementById('inp-pend-g').value = state.g;
+        updateParams();
+    }
+
+    function loadPreset(id) {
+        applyPreset(id);
+    }
+
+    function exportCSV() {
+        let csv = "time,";
+        if(state.mode === 'nbody') {
+            for(let i=0; i<state.bodies.length; i++) csv += `m${i}_x,m${i}_y,m${i}_vx,m${i}_vy,`;
+            csv += "\n" + state.time + ",";
+            for(let b of state.bodies) csv += `${b.x},${b.y},${b.vx},${b.vy},`;
+        } else {
+            for(let i=0; i<state.pendulums.length; i++) csv += `p${i}_th1,p${i}_th2,p${i}_v1,p${i}_v2,`;
+            csv += "\n" + state.time + ",";
+            for(let p of state.pendulums) csv += `${p.th1},${p.th2},${p.v1},${p.v2},`;
+        }
+        
+        const blob = new Blob([csv], {type: 'text/csv'});
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `graviton_${state.mode}_export.csv`;
+        a.click();
+    }
+
+    // Init
+    resize();
+    updateParams();
+    updateIntegrator();
+    setMode('nbody'); // will also load figure8
+    requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
